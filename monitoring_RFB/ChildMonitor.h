@@ -12,7 +12,6 @@
 class CMonitorGraphUnit
 {
 public:
-
 	enum TYPE
 	{
 		BAR_SINGLE_VERT,
@@ -79,6 +78,15 @@ private:
 	// 데이터
 	//------------------------------------------------------
 	//데이터 큐
+	
 	Queue<int>* _dataQ;
 
+	HDC _memDC;
+	HBITMAP _bitmap;
+	HBITMAP _oldBitmap;
+	RECT _rect;
+
+	// static 맴버 함수의 프로시저에서 This 포인터를 찾기 위한
+	// HWND + Class Ptr 의 테이블
+	static ST_HWNDtoTHIS _childInfoTable[dfMAXCHILD];
 };
