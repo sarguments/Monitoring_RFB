@@ -24,7 +24,7 @@ public:
 	struct ST_HWNDtoTHIS
 	{
 		HWND				hWnd[dfMAXCHILD];
-		CMonitorGraphUnit	*pThis[dfMAXCHILD];
+		CMonitorGraphUnit* pThis[dfMAXCHILD];
 
 	};
 

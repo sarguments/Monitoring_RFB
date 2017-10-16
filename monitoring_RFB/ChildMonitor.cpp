@@ -2,15 +2,14 @@
 #include "ChildMonitor.h"
 
 /*
-펜, 브러시 미리
-랜덤 라인
-더블버퍼링
-
 static 테이블
 static인 이유가 콜백함수라서?
 */
 
 /*
+펜, 브러시 미리
+더블버퍼링
+
 HDC hDC = GetDC(hWnd);
 BitBlt(hDC, Rect.right, Rect.bottm, 0, 0, SRCCOPY)
 ReleaseDC(hWnd
@@ -36,9 +35,6 @@ CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, COLOR
 	_iWindowHeight = iHeight;
 	_hWndParent = hWndParent;
 	_hInstance = hInstance;
-
-	// 객체 생성시 this 포인터와 hWnd 저장
-	PutThis();
 
 	// 윈도우 등록
 	WNDCLASSEXW wcex;
@@ -72,9 +68,11 @@ CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, COLOR
 	else
 	{
 		wcout << L"Child window create error : " << GetLastError() << endl;
-
 		return;
 	}
+
+	// 객체 생성시 this 포인터와 hWnd 저장
+	PutThis();
 
 	// 랜덤 그래프 그리기
 	srand((unsigned int)time(NULL));
@@ -99,32 +97,36 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 {
 	switch (message)
 	{
-	case WM_TIMER:
-	{
-		switch (wParam)
-		{
-		case 1:
-		{
-			//if (_dataQ.IsFull())
-			//{
-			//	int getValue = 0;
-			//	g_queue.Get(&getValue);
-			//}
-
-			//int randValue = rand() % 500;
-			//g_queue.Put(randValue);
-
-			InvalidateRect(hWnd, NULL, TRUE);
-		}
-		break;
-		}
-	}
-	break;
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
 		// TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다.
+
+		CMonitorGraphUnit* pThis = CMonitorGraphUnit::GetThis(hWnd);
+		if (pThis == nullptr)
+		{
+			wcout << L"getThis nullptr : " << GetLastError() << endl;
+
+			return NULL;
+		}
+
+		int firstValue = 0;
+		pThis->_dataQ->Peek(&firstValue, 0);
+
+		if (!pThis->_dataQ->IsEmpty())
+		{
+			MoveToEx(hdc, 0, firstValue, NULL);
+		}
+
+		for (int i = 1; i < pThis->_dataQ->Count(); i++)
+		{
+			int peekValue = 0;
+			pThis->_dataQ->Peek(&peekValue, i);
+
+			LineTo(hdc, i * 2, peekValue);
+		}
+
 		EndPaint(hWnd, &ps);
 	}
 	break;
@@ -139,28 +141,59 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 
 BOOL CMonitorGraphUnit::InsertData(int iData)
 {
-	return 0;
+	if (this == nullptr)
+	{
+		wcout << L"InsertData nullptr" << endl;
+
+		return FALSE;
+	}
+
+	if (this->_dataQ->IsFull())
+	{
+		int getValue = 0;
+		this->_dataQ->Get(&getValue);
+		wcout << getValue << L"is getOut" << endl;
+	}
+
+	this->_dataQ->Put(iData);
+	wcout << iData << L"is put" << endl;
+
+	InvalidateRect(this->_hWnd, NULL, TRUE);
+
+	return TRUE;
 }
 
 BOOL CMonitorGraphUnit::PutThis(void)
 {
 	for (int i = 0; i < dfMAXCHILD; i++)
 	{
-		if (_childInfoTable->hWnd[i] == NULL)
+		if (_childInfoTable->hWnd[i] != NULL)
 		{
 			continue;
 		}
 
 		_childInfoTable->hWnd[i] = _hWnd;
 		_childInfoTable->pThis[i] = this;
+
+		return TRUE;
 	}
 
-	return TRUE;
+	return FALSE;
 }
 
 CMonitorGraphUnit * CMonitorGraphUnit::GetThis(HWND hWnd)
 {
-	return NULL;
+	for (int i = 0; i < dfMAXCHILD; i++)
+	{
+		if (_childInfoTable->hWnd[i] != hWnd)
+		{
+			continue;
+		}
+
+		return _childInfoTable->pThis[i];
+	}
+
+	return nullptr;
 }
 
 CMonitorGraphUnit::ST_HWNDtoTHIS CMonitorGraphUnit::_childInfoTable[dfMAXCHILD];
