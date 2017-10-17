@@ -81,7 +81,7 @@ private:
 	HBRUSH _brushArr[5];
 	HPEN _penArr[5];
 
-	WCHAR _szWindowClass[30] = L"";
+	WCHAR _szWindowClass[30];
 	int _iWindowPosX;
 	int _iWindowPosY;
 	int _iWindowWidth;
