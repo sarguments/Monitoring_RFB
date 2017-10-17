@@ -6,21 +6,11 @@ static 테이블
 static인 이유가 콜백함수라서?
 */
 
-/*
-펜, 브러시 미리
-더블버퍼링
-
-HDC hDC = GetDC(hWnd);
-BitBlt(hDC, Rect.right, Rect.bottm, 0, 0, SRCCOPY)
-ReleaseDC(hWnd
-*/
-
-CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, COLORREF BackColor, TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight)
+CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight)
 {
-	// 각종 초기화
+	// 각종 멤버 초기화
 	_dataQ = new Queue<int>(100);
-
-	_backColor = BackColor;
+	_backColor = color;
 	_enGraphType = enType;
 
 	static int titleNum = 0;
@@ -46,47 +36,18 @@ CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, COLOR
 	wcex.hInstance = hInstance;
 	wcex.hIcon = NULL;
 	wcex.hCursor = NULL;
-
-	// TODO : 배경색은 일단 테스트용
-	HBRUSH myBrush = CreateSolidBrush(_backColor);
-	wcex.hbrBackground = myBrush;
-
+	wcex.hbrBackground = NULL;
 	wcex.lpszMenuName = NULL;
 	wcex.lpszClassName = _szWindowClass;
 	wcex.hIconSm = NULL;
 
 	RegisterClassEx(&wcex);
 
-	// 윈도우 생성
-	_hWnd = CreateWindow(_szWindowClass, NULL, WS_CHILD | WS_VISIBLE | WS_CAPTION | WS_CLIPSIBLINGS,
-		_iWindowPosX, _iWindowPosY, _iWindowWidth, _iWindowHeight, _hWndParent, NULL, _hInstance, NULL);
-	
-	if (_hWnd != NULL)
-	{
-		wcout << L"Child window created : " << _szWindowClass << endl;
-	}
-	else
-	{
-		wcout << L"Child window create error : " << GetLastError() << endl;
-		return;
-	}
+	// 그리기 초기화, 윈도우 생성
+	Init();
 
 	// 객체 생성시 this 포인터와 hWnd 저장
 	PutThis();
-
-	// 랜덤 그래프 그리기
-	srand((unsigned int)time(NULL));
-	SetTimer(_hWnd, 1, 150, NULL);
-
-	// 더블 버퍼링 준비
-	GetClientRect(_hWnd, &_rect);
-	HDC hdc = GetDC(_hWnd);
-	_memDC = CreateCompatibleDC(hdc);
-	_bitmap = CreateCompatibleBitmap(hdc, _rect.right, _rect.bottom);
-	_oldBitmap = (HBITMAP)SelectObject(_memDC, _bitmap);
-
-	// TODO : 왠 핸들?
-	//wcout << L"Error : " << GetLastError() << endl;
 }
 
 CMonitorGraphUnit::~CMonitorGraphUnit()
@@ -110,13 +71,15 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 
 			return NULL;
 		}
+		
+		FillRect(pThis->_memDC, &pThis->_rect, pThis->_brushArr[pThis->_backColor]);
 
 		int firstValue = 0;
 		pThis->_dataQ->Peek(&firstValue, 0);
 
 		if (!pThis->_dataQ->IsEmpty())
 		{
-			MoveToEx(hdc, 0, firstValue, NULL);
+			MoveToEx(pThis->_memDC, 0, firstValue, NULL);
 		}
 
 		for (int i = 1; i < pThis->_dataQ->Count(); i++)
@@ -124,8 +87,13 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 			int peekValue = 0;
 			pThis->_dataQ->Peek(&peekValue, i);
 
-			LineTo(hdc, i * 2, peekValue);
+			LineTo(pThis->_memDC, static_cast<int>(i * (static_cast<float>(pThis->_rect.right) / 100)), peekValue);
 		}
+
+		BitBlt(hdc, 0, 0,
+			pThis->_rect.right, pThis->_rect.bottom, 
+			pThis->_memDC, 0, 0, 
+			SRCCOPY);
 
 		EndPaint(hWnd, &ps);
 	}
@@ -163,6 +131,58 @@ BOOL CMonitorGraphUnit::InsertData(int iData)
 	return TRUE;
 }
 
+void CMonitorGraphUnit::Init()
+{
+	WindowInit();
+	DrawInit();
+}
+
+void CMonitorGraphUnit::DrawInit()
+{
+	// TODO : 리소스 해제는 나중에 하자
+	// 브러시, 펜 생성
+	_brushArr[Color::RED] = CreateSolidBrush(RGB(255, 0, 0));
+	_brushArr[Color::GREEN] = CreateSolidBrush(RGB(0, 255, 0));
+	_brushArr[Color::BLUE] = CreateSolidBrush(RGB(0, 0, 255));
+	_brushArr[Color::YELLOW] = CreateSolidBrush(RGB(255, 255, 0));
+	_brushArr[Color::PINK] = CreateSolidBrush(RGB(255, 102, 204));
+
+	_penArr[Color::RED] = CreatePen(BS_SOLID, 1, RGB(255, 0, 0));
+	_penArr[Color::GREEN] = CreatePen(BS_SOLID, 1, RGB(0, 255, 0));
+	_penArr[Color::BLUE] = CreatePen(BS_SOLID, 1, RGB(0, 0, 255));
+	_penArr[Color::YELLOW] = CreatePen(BS_SOLID, 1, RGB(255, 255, 0));
+	_penArr[Color::PINK] = CreatePen(BS_SOLID, 1, RGB(255, 102, 204));
+
+	// 랜덤 그래프 그리기
+	srand((unsigned int)time(NULL));
+	SetTimer(_hWnd, 1, 150, NULL);
+
+	// 더블 버퍼링 준비
+	GetClientRect(_hWnd, &_rect);
+	HDC hdc = GetDC(_hWnd);
+	_memDC = CreateCompatibleDC(hdc);
+
+	_bitmap = CreateCompatibleBitmap(hdc, _rect.right, _rect.bottom);
+	_oldBitmap = (HBITMAP)SelectObject(_memDC, _bitmap);
+}
+
+void CMonitorGraphUnit::WindowInit()
+{
+	// 윈도우 생성
+	_hWnd = CreateWindow(_szWindowClass, NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+		_iWindowPosX, _iWindowPosY, _iWindowWidth, _iWindowHeight, _hWndParent, NULL, _hInstance, NULL);
+
+	if (_hWnd != NULL)
+	{
+		wcout << L"Child window created : " << _szWindowClass << endl;
+	}
+	else
+	{
+		wcout << L"Child window create error : " << GetLastError() << endl;
+		return;
+	}
+}
+
 BOOL CMonitorGraphUnit::PutThis(void)
 {
 	for (int i = 0; i < dfMAXCHILD; i++)
@@ -177,7 +197,6 @@ BOOL CMonitorGraphUnit::PutThis(void)
 
 		return TRUE;
 	}
-
 	return FALSE;
 }
 
@@ -189,10 +208,8 @@ CMonitorGraphUnit * CMonitorGraphUnit::GetThis(HWND hWnd)
 		{
 			continue;
 		}
-
 		return _childInfoTable->pThis[i];
 	}
-
 	return nullptr;
 }
 

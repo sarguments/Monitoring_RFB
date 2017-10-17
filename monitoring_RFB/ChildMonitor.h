@@ -12,6 +12,15 @@
 class CMonitorGraphUnit
 {
 public:
+	enum Color
+	{
+		RED,
+		GREEN,
+		BLUE,
+		YELLOW,
+		PINK
+	};
+
 	enum TYPE
 	{
 		BAR_SINGLE_VERT,
@@ -29,8 +38,7 @@ public:
 	};
 
 public:
-
-	CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, COLORREF BackColor, TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight);
+	CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight);
 	~CMonitorGraphUnit();
 
 	/////////////////////////////////////////////////////////
@@ -42,6 +50,9 @@ public:
 	// 데이터 넣기.
 	/////////////////////////////////////////////////////////
 	BOOL	InsertData(int iData);
+	void Init();
+	void DrawInit();
+	void WindowInit();
 
 protected:
 
@@ -64,8 +75,11 @@ private:
 	//------------------------------------------------------
 	// 윈도우 위치,크기,색상, 그래프 타입 등.. 자료
 	//------------------------------------------------------
-	TYPE		_enGraphType;
-	COLORREF _backColor;
+	TYPE _enGraphType;
+	Color _backColor;
+
+	HBRUSH _brushArr[5];
+	HPEN _penArr[5];
 
 	WCHAR _szWindowClass[30] = L"";
 	int _iWindowPosX;
