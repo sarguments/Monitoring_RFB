@@ -83,7 +83,9 @@ protected:
 	void	Paint_BarSingleHorz(void);
 	void	Paint_BarColumnVert(void);
 	void	Paint_BarColumnHorz(void);
+	//
 	void	Paint_LineSingle(void);
+	//
 	void	Paint_LineMulti(void);
 	void	Paint_Pie(void);
 
@@ -154,7 +156,7 @@ private:
 	//------------------------------------------------------
 	// 경고모드 - 
 	//
-	// 데이터 경고수치 도달시 경고음과 함께 자신을 제외한 모든 윈도우에 UM_ALERT 메시지를 보낸다.
+	// 데이터 경고수치 도달시 부모 윈도우에 UM_ALERT 메시지를 보낸다.
 	//
 	// _bAlertMode = TRUE 가 된 후 타이머를 사용하여 일정시간 후 해제.
 	//------------------------------------------------------

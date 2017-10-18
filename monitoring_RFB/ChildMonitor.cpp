@@ -55,10 +55,41 @@ CMonitorGraphUnit::~CMonitorGraphUnit()
 {
 }
 
+void CMonitorGraphUnit::SetInformation(WCHAR * szTitle, int iDataMax, int iDataAlert)
+{
+	wcscpy_s(this->_szTitle, sizeof(this->_szTitle) / 2, szTitle);
+	SetWindowText(this->_hWnd, this->_szTitle);
+
+	_iDataMax = iDataMax;
+
+	if (iDataAlert == 0)
+	{
+		_iDataAlert = INT_MAX;
+	}
+	else
+	{
+		_iDataAlert = iDataAlert;
+	}
+}
+
 LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
 	{
+	case WM_TIMER:
+	{
+		CMonitorGraphUnit* pThis = CMonitorGraphUnit::GetThis(hWnd);
+		if (pThis == nullptr)
+		{
+			wcout << L"getThis nullptr : " << GetLastError() << endl;
+
+			return NULL;
+		}
+
+		KillTimer(pThis->_hWnd, 1);
+		pThis->_bAlertMode = false;
+	}
+	break;
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
@@ -77,61 +108,16 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 		//SetROP2(pThis->_memDC, R2_COPYPEN);
 
 		// 배경색
-		FillRect(pThis->_memDC, &pThis->_rect, pThis->_brushArr[pThis->_backColor]);
+		pThis->ClearMemDC();
 
 		// 그리드
-		RECT localRect = pThis->_rect;
-		const int gridOffset = static_cast<int>(static_cast<float>(localRect.bottom) / 4);
-
-		for (int i = 0; i < 3; i++)
-		{
-			MoveToEx(pThis->_memDC, 0, gridOffset + gridOffset * i, NULL);
-			LineTo(pThis->_memDC, localRect.right, gridOffset + gridOffset * i);
-		}
-
-		// 그리드 글자
-		SetBkMode(pThis->_memDC, TRANSPARENT);
-		HFONT oldFont = (HFONT)SelectObject(pThis->_memDC, pThis->_font);
-		int gridTextNum = 100;
-
-		for (int i = 0; i < 4; i++)
-		{
-			WCHAR gridText[5];
-			_itow_s(gridTextNum, gridText, 5, 10);
-			TextOut(pThis->_memDC, 5, i * gridOffset + 1, gridText, 3);
-			gridTextNum -= 25;
-		}
-
-		SelectObject(pThis->_memDC, oldFont);
+		pThis->Paint_Grid();
 
 		// 선 그리기
-		
-		int firstValue = 0;
-		pThis->_dataQ->Peek(&firstValue, 0);
-
-		float fixedValue = static_cast<float>(firstValue) / 100 * localRect.bottom;
-
-		if (!pThis->_dataQ->IsEmpty())
-		{
-			MoveToEx(pThis->_memDC, 0, static_cast<int>(localRect.bottom - fixedValue), NULL);
-		}
-
-		for (int i = 1; i < pThis->_dataQ->Count(); i++)
-		{
-			int peekValue = 0;
-			pThis->_dataQ->Peek(&peekValue, i);
-
-			fixedValue = static_cast<float>(peekValue) / 100 * localRect.bottom;
-
-			LineTo(pThis->_memDC, static_cast<int>(i * (static_cast<float>(pThis->_rect.right) / 50)), 
-				static_cast<int>(localRect.bottom - fixedValue));
-		}
+		pThis->Paint_LineSingle();
 
 		// 플립
-		BitBlt(hdc, 0, 0,
-			pThis->_rect.right, pThis->_rect.bottom, 
-			pThis->_memDC, 0, 0, 
-			SRCCOPY);
+		pThis->FlipMemDC(hdc);
 
 		EndPaint(hWnd, &ps);
 	}
@@ -166,10 +152,12 @@ BOOL CMonitorGraphUnit::InsertData(int iData)
 
 	InvalidateRect(this->_hWnd, NULL, TRUE);
 
-	// data가 alert 보다 크면
-	if (iData > 98)
+	// iData가 _iDataAlert 보다 크면
+	if (iData > this->_iDataAlert)
 	{
 		Alert();
+		SetTimer(this->_hWnd, 1, 200, NULL);
+		this->_bAlertMode = true;
 	}
 
 	return TRUE;
@@ -232,9 +220,39 @@ void CMonitorGraphUnit::WindowInit()
 
 BOOL CMonitorGraphUnit::Alert(void)
 {
+	if (this->_bAlertMode)
+	{
+		// 막 알람이 울린 시점이면 return FALSE
+		return FALSE;
+	}
+
 	SendMessage(this->_hWndParent, UM_ALERT, NULL, NULL);
 
 	return TRUE;
+}
+
+void CMonitorGraphUnit::Paint_Grid(void)
+{
+	const int gridOffset = static_cast<int>(static_cast<float>(this->_rect.bottom) / 4);
+
+	for (int i = 0; i < 3; i++)
+	{
+		MoveToEx(this->_memDC, 0, gridOffset + gridOffset * i, NULL);
+		LineTo(this->_memDC, this->_rect.right, gridOffset + gridOffset * i);
+	}
+
+	SetBkMode(this->_memDC, TRANSPARENT);
+	HFONT oldFont = (HFONT)SelectObject(this->_memDC, this->_font);
+	int gridTextNum = this->_iDataMax;
+
+	for (int i = 0; i < 4; i++)
+	{
+		WCHAR gridText[5];
+		_itow_s(gridTextNum, gridText, 5, 10);
+		TextOut(this->_memDC, 5, i * gridOffset + 1, gridText, 3);
+		gridTextNum -= 25;
+	}
+	SelectObject(this->_memDC, oldFont);
 }
 
 BOOL CMonitorGraphUnit::PutThis(void)
@@ -268,3 +286,41 @@ CMonitorGraphUnit * CMonitorGraphUnit::GetThis(HWND hWnd)
 }
 
 CMonitorGraphUnit::ST_HWNDtoTHIS CMonitorGraphUnit::_childInfoTable[dfMAXCHILD];
+
+void CMonitorGraphUnit::ClearMemDC(void)
+{
+	// 배경색
+	FillRect(this->_memDC, &this->_rect, this->_brushArr[this->_backColor]);
+}
+
+void CMonitorGraphUnit::FlipMemDC(HDC hDC)
+{
+	BitBlt(hDC, 0, 0,
+		this->_rect.right, this->_rect.bottom,
+		this->_memDC, 0, 0,
+		SRCCOPY);
+}
+
+void CMonitorGraphUnit::Paint_LineSingle(void)
+{
+	int firstValue = 0;
+	this->_dataQ->Peek(&firstValue, 0);
+
+	float fixedValue = static_cast<float>(firstValue) / this->_iDataMax * this->_rect.bottom;
+
+	if (!this->_dataQ->IsEmpty())
+	{
+		MoveToEx(this->_memDC, 0, static_cast<int>(this->_rect.bottom - fixedValue), NULL);
+	}
+
+	for (int i = 1; i < this->_dataQ->Count(); i++)
+	{
+		int peekValue = 0;
+		this->_dataQ->Peek(&peekValue, i);
+
+		fixedValue = static_cast<float>(peekValue) / this->_iDataMax * this->_rect.bottom;
+
+		LineTo(this->_memDC, static_cast<int>(i * (static_cast<float>(this->_rect.right) / 50)),
+			static_cast<int>(this->_rect.bottom - fixedValue));
+	}
+}
