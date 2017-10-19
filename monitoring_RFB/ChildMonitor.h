@@ -2,13 +2,15 @@
 
 #include "ClassQueue.h"
 
-//- 본 클래스 내부에서 자식 윈도우의 생성, 자식 윈도우의 프로시저, 데이터 등을 모두 가진다.
+//- 본 클래스 내부에서 자식 윈도우의 생성, 자식 윈도우의 프로시저,
+//데이터 등을 모두 가진다.
 
 
 //// 자식 윈도우 클래스 헤더 ////////////////////////////
 
-#define dfMAXCHILD		100
 #define UM_ALERT		WM_USER + 1
+#define dfMAXCHILD		100
+#define QUEUE_SIZE		50
 
 // SendMessage(부모핸들, UM_ALERT...) 를 통해서 부모에게 경고를 알린다
 // 부모는 경고 메시지를 받은경우 배경을 빨간색으로 칠함.
@@ -39,11 +41,11 @@ public:
 	{
 		HWND				hWnd[dfMAXCHILD];
 		CMonitorGraphUnit* pThis[dfMAXCHILD];
-
 	};
 
 public:
-	CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight);
+	CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, TYPE enType, 
+		int iPosX, int iPosY, int iWidth, int iHeight);
 	~CMonitorGraphUnit();
 
 	/////////////////////////////////////////////////////////

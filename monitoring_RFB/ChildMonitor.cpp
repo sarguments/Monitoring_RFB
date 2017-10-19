@@ -10,7 +10,7 @@ CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color
 	TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight)
 {
 	// 각종 멤버 초기화
-	_dataQ = new Queue<int>(50);
+	_dataQ = new Queue<int>(QUEUE_SIZE);
 	_backColor = color;
 	_enGraphType = enType;
 
@@ -88,6 +88,9 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 
 		KillTimer(pThis->_hWnd, 1);
 		pThis->_bAlertMode = false;
+
+		HPEN blackPen = (HPEN)GetStockObject(BLACK_PEN);
+		SelectObject(pThis->_memDC, blackPen);
 	}
 	break;
 	case WM_PAINT:
@@ -186,8 +189,9 @@ void CMonitorGraphUnit::DrawInit()
 	_penArr[Color::PINK] = CreatePen(BS_SOLID, 1, RGB(255, 102, 204));
 
 	// 폰트
-	_font = CreateFont(10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-		CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"고딕체");
+	_font = CreateFont(10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, 0, 
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+		ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"고딕체");
 
 	// 랜덤 그래프 그리기
 	srand((unsigned int)time(NULL));
@@ -205,8 +209,9 @@ void CMonitorGraphUnit::DrawInit()
 void CMonitorGraphUnit::WindowInit()
 {
 	// 윈도우 생성
-	_hWnd = CreateWindow(_szWindowClass, _szWindowClass, WS_CAPTION | WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-		_iWindowPosX, _iWindowPosY, _iWindowWidth, _iWindowHeight, _hWndParent, nullptr, _hInstance, nullptr);
+	_hWnd = CreateWindow(_szWindowClass, _szWindowClass, WS_CAPTION | WS_CHILD |
+		WS_VISIBLE | WS_CLIPSIBLINGS, _iWindowPosX, _iWindowPosY, _iWindowWidth, 
+		_iWindowHeight, _hWndParent, nullptr, _hInstance, nullptr);
 	if (_hWnd != NULL)
 	{
 		wcout << L"Child window created : " << _szWindowClass << endl;
@@ -227,6 +232,8 @@ BOOL CMonitorGraphUnit::Alert(void)
 	}
 
 	SendMessage(this->_hWndParent, UM_ALERT, NULL, NULL);
+
+	SelectObject(this->_memDC, this->_penArr[Color::RED]);
 
 	return TRUE;
 }
@@ -250,7 +257,7 @@ void CMonitorGraphUnit::Paint_Grid(void)
 		WCHAR gridText[5];
 		_itow_s(gridTextNum, gridText, 5, 10);
 		TextOut(this->_memDC, 5, i * gridOffset + 1, gridText, 3);
-		gridTextNum -= 25;
+		gridTextNum -= (this->_iDataMax / 4);
 	}
 	SelectObject(this->_memDC, oldFont);
 }
@@ -320,7 +327,8 @@ void CMonitorGraphUnit::Paint_LineSingle(void)
 
 		fixedValue = static_cast<float>(peekValue) / this->_iDataMax * this->_rect.bottom;
 
-		LineTo(this->_memDC, static_cast<int>(i * (static_cast<float>(this->_rect.right) / 50)),
+		LineTo(this->_memDC, 
+			static_cast<int>(i * (static_cast<float>(this->_rect.right) / 50)),
 			static_cast<int>(this->_rect.bottom - fixedValue));
 	}
 }
