@@ -6,11 +6,14 @@ static 테이블
 static인 이유가 콜백함수라서?
 */
 
-CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, 
-	TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight)
+CMonitorGraphUnit::CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color,
+	TYPE enType, int iPosX, int iPosY, int iWidth, int iHeight, int iColumnNum)
 {
 	// 각종 멤버 초기화
-	_dataQ = new Queue<int>(QUEUE_SIZE);
+	//_dataQ = new Queue<int>(QUEUE_SIZE);
+	_iDataColumn = iColumnNum;
+	_ColumArray = new ST_COLUMN_INFO[_iDataColumn];
+	_dataQ = new Queue<int>[_iDataColumn];
 	_backColor = color;
 	_enGraphType = enType;
 
@@ -72,6 +75,13 @@ void CMonitorGraphUnit::SetInformation(WCHAR * szTitle, int iDataMax, int iDataA
 	}
 }
 
+void CMonitorGraphUnit::SetDataColumnInfo(int iColIndex, ULONG64 u64ServerID, int iType, WCHAR * szName)
+{
+	this->_ColumArray[iColIndex].u64ServerID = u64ServerID; // 의미없음
+	this->_ColumArray[iColIndex].iType = iType; // 일종의 고유 식별 번호?
+	wcscpy_s(this->_ColumArray[iColIndex].szName, TEXT_SIZE / 2, szName);
+}
+
 LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
@@ -110,17 +120,28 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 		//SetROP2(pThis->_memDC, R2_XORPEN);
 		//SetROP2(pThis->_memDC, R2_COPYPEN);
 
-		// 배경색
-		pThis->ClearMemDC();
+		switch (pThis->_enGraphType)
+		{
+		case LINE_SINGLE:
+			pThis->Paint_LineSingle();
+			break;
 
-		// 그리드
-		pThis->Paint_Grid();
+		case LINE_MULTI:
+			pThis->Paint_LineMulti();
+			break;
+		}
 
-		// 선 그리기
-		pThis->Paint_LineSingle();
+		//// 배경색
+		//pThis->ClearMemDC();
 
-		// 플립
-		pThis->FlipMemDC(hdc);
+		//// 그리드
+		//pThis->Paint_Grid();
+
+		//// 선 그리기
+		//pThis->Paint_LineSingle();
+
+		//// 플립
+		//pThis->FlipMemDC(hdc);
 
 		EndPaint(hWnd, &ps);
 	}
@@ -134,33 +155,46 @@ LRESULT CMonitorGraphUnit::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARA
 	return 0;
 }
 
-BOOL CMonitorGraphUnit::InsertData(int iData)
+BOOL CMonitorGraphUnit::InsertData(ULONG64 u64ServerID, int iType, int iData)
 {
+	// TODO : 이게맞나?
 	if (this == nullptr)
 	{
-		wcout << L"InsertData nullptr" << endl;
-
 		return FALSE;
 	}
 
-	if (this->_dataQ->IsFull())
+	for (int j = 0; j < this->_iDataColumn; j++)
 	{
-		int getValue = 0;
-		this->_dataQ->Get(&getValue);
-		//wcout << getValue << L"is getOut" << endl;
-	}
+		if (this->_ColumArray[j].u64ServerID != u64ServerID)
+		{
+			continue;
+		}
 
-	this->_dataQ->Put(iData);
-	//wcout << iData << L"is put" << endl;
+		if (this->_ColumArray[j].iType != iType)
+		{
+			continue;
+		}
 
-	InvalidateRect(this->_hWnd, NULL, TRUE);
+		if (this->_dataQ[j].IsFull())
+		{
+			int getValue = 0;
+			this->_dataQ[j].Get(&getValue);
+			//wcout << getValue << L"is getOut" << endl;
+		}
 
-	// iData가 _iDataAlert 보다 크면
-	if (iData > this->_iDataAlert)
-	{
-		Alert();
-		SetTimer(this->_hWnd, 1, 200, NULL);
-		this->_bAlertMode = true;
+		this->_dataQ[j].Put(iData);
+		//wcout << iData << L"is put" << endl;
+
+		// 해당 윈도우 InvalidateRect
+		InvalidateRect(this->_hWnd, NULL, TRUE);
+
+		// iData가 _iDataAlert 보다 크면
+		if (iData > this->_iDataAlert)
+		{
+			Alert();
+			SetTimer(this->_hWnd, 1, 200, NULL);
+			this->_bAlertMode = true;
+		}
 	}
 
 	return TRUE;
@@ -189,8 +223,8 @@ void CMonitorGraphUnit::DrawInit()
 	_penArr[Color::PINK] = CreatePen(BS_SOLID, 1, RGB(255, 102, 204));
 
 	// 폰트
-	_font = CreateFont(10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, 0, 
-		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+	_font = CreateFont(10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, 0,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
 		ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_SWISS, L"고딕체");
 
 	// 랜덤 그래프 그리기
@@ -199,10 +233,10 @@ void CMonitorGraphUnit::DrawInit()
 
 	// 더블 버퍼링 준비
 	GetClientRect(_hWnd, &_rect);
-	HDC hdc = GetDC(_hWnd);
-	_memDC = CreateCompatibleDC(hdc);
+	_hdc = GetDC(_hWnd);
+	_memDC = CreateCompatibleDC(_hdc);
 
-	_bitmap = CreateCompatibleBitmap(hdc, _rect.right, _rect.bottom);
+	_bitmap = CreateCompatibleBitmap(_hdc, _rect.right, _rect.bottom);
 	_oldBitmap = (HBITMAP)SelectObject(_memDC, _bitmap);
 }
 
@@ -210,7 +244,7 @@ void CMonitorGraphUnit::WindowInit()
 {
 	// 윈도우 생성
 	_hWnd = CreateWindow(_szWindowClass, _szWindowClass, WS_CAPTION | WS_CHILD |
-		WS_VISIBLE | WS_CLIPSIBLINGS, _iWindowPosX, _iWindowPosY, _iWindowWidth, 
+		WS_VISIBLE | WS_CLIPSIBLINGS, _iWindowPosX, _iWindowPosY, _iWindowWidth,
 		_iWindowHeight, _hWndParent, nullptr, _hInstance, nullptr);
 	if (_hWnd != NULL)
 	{
@@ -310,6 +344,13 @@ void CMonitorGraphUnit::FlipMemDC(HDC hDC)
 
 void CMonitorGraphUnit::Paint_LineSingle(void)
 {
+	// 배경색
+	this->ClearMemDC();
+
+	// 그리드
+	this->Paint_Grid();
+
+	// 선 그리기
 	int firstValue = 0;
 	this->_dataQ->Peek(&firstValue, 0);
 
@@ -327,8 +368,49 @@ void CMonitorGraphUnit::Paint_LineSingle(void)
 
 		fixedValue = static_cast<float>(peekValue) / this->_iDataMax * this->_rect.bottom;
 
-		LineTo(this->_memDC, 
+		LineTo(this->_memDC,
 			static_cast<int>(i * (static_cast<float>(this->_rect.right) / 50)),
 			static_cast<int>(this->_rect.bottom - fixedValue));
 	}
+
+	// 플립
+	this->FlipMemDC(this->_hdc);
+}
+
+void CMonitorGraphUnit::Paint_LineMulti(void)
+{
+	// 배경색
+	this->ClearMemDC();
+
+	// 그리드
+	this->Paint_Grid();
+
+	for (int i = 0; i < this->_iDataColumn; i++)
+	{
+		// 선 그리기
+		int firstValue = 0;
+		this->_dataQ[i].Peek(&firstValue, 0);
+
+		float fixedValue = static_cast<float>(firstValue) / this->_iDataMax * this->_rect.bottom;
+
+		if (!this->_dataQ[i].IsEmpty())
+		{
+			MoveToEx(this->_memDC, 0, static_cast<int>(this->_rect.bottom - fixedValue), NULL);
+		}
+
+		for (int j = 1; j < this->_dataQ[i].Count(); j++)
+		{
+			int peekValue = 0;
+			this->_dataQ[i].Peek(&peekValue, j);
+
+			fixedValue = static_cast<float>(peekValue) / this->_iDataMax * this->_rect.bottom;
+
+			LineTo(this->_memDC,
+				static_cast<int>(j * (static_cast<float>(this->_rect.right) / 50)),
+				static_cast<int>(this->_rect.bottom - fixedValue));
+		}
+	}
+
+	// 플립
+	this->FlipMemDC(this->_hdc);
 }

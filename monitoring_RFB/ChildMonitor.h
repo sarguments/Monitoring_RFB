@@ -5,12 +5,12 @@
 //- 본 클래스 내부에서 자식 윈도우의 생성, 자식 윈도우의 프로시저,
 //데이터 등을 모두 가진다.
 
-
 //// 자식 윈도우 클래스 헤더 ////////////////////////////
 
 #define UM_ALERT		WM_USER + 1
 #define dfMAXCHILD		100
 #define QUEUE_SIZE		50
+#define TEXT_SIZE 32
 
 // SendMessage(부모핸들, UM_ALERT...) 를 통해서 부모에게 경고를 알린다
 // 부모는 경고 메시지를 받은경우 배경을 빨간색으로 칠함.
@@ -43,9 +43,18 @@ public:
 		CMonitorGraphUnit* pThis[dfMAXCHILD];
 	};
 
+	struct ST_COLUMN_INFO
+	{
+		ULONG64 u64ServerID;
+		int iType;
+		WCHAR szName[TEXT_SIZE];
+
+		// 여기에 Queue 를 추가하여도 됨.
+	};
+
 public:
-	CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, TYPE enType, 
-		int iPosX, int iPosY, int iWidth, int iHeight);
+	CMonitorGraphUnit(HINSTANCE hInstance, HWND hWndParent, Color color, TYPE enType,
+		int iPosX, int iPosY, int iWidth, int iHeight, int iColumnNum = 1);
 	~CMonitorGraphUnit();
 
 	/////////////////////////////////////////////////////////
@@ -54,6 +63,7 @@ public:
 	// 윈도우 이름, 최대치, 경보수치 (0이면 없음)
 	/////////////////////////////////////////////////////////
 	void	SetInformation(WCHAR *szTitle, int iDataMax, int iDataAlert);
+	void	SetDataColumnInfo(int iColIndex, ULONG64 u64ServerID, int iType, WCHAR *szName = L"");
 
 	/////////////////////////////////////////////////////////
 	// 윈도우 프로시저
@@ -63,7 +73,7 @@ public:
 	/////////////////////////////////////////////////////////
 	// 데이터 넣기.
 	/////////////////////////////////////////////////////////
-	BOOL	InsertData(int iData);
+	BOOL	InsertData(ULONG64 u64ServerID, int iType, int iData);
 	void Init();
 	void DrawInit();
 	void WindowInit();
@@ -79,7 +89,6 @@ protected:
 	/////////////////////////////////////////////////////////////
 	//void	Paint_Title(void);
 	void	Paint_Grid(void);
-
 
 	void	Paint_BarSingleVert(void);
 	void	Paint_BarSingleHorz(void);
@@ -109,6 +118,10 @@ protected:
 	static CMonitorGraphUnit	*GetThis(HWND hWnd);
 
 private:
+	// 멀티 라인
+	int		_iDataColumn; // 본 윈도우의 컬럼 개수
+	Queue<int>	*_DataArray;  // 여러개의 컬럼이 필요하므로 동적 배열 할당
+	ST_COLUMN_INFO	*_ColumArray; // 컬럼별 데이터 타입
 
 	//------------------------------------------------------
 	// 부모 윈도우 핸들, 내 윈도우 핸들, 인스턴스 핸들
@@ -127,7 +140,7 @@ private:
 	HPEN _penArr[5];
 	HFONT _font;
 
-	WCHAR _szWindowClass[30];
+	WCHAR _szWindowClass[TEXT_SIZE];
 	int _iWindowPosX;
 	int _iWindowPosY;
 	int _iWindowWidth;
@@ -136,16 +149,17 @@ private:
 	//------------------------------------------------------
 	// 정보창 이름
 	//------------------------------------------------------
-	WCHAR _szTitle[32];
+	WCHAR _szTitle[TEXT_SIZE];
 
 	//------------------------------------------------------
 	// 데이터, 최고치, 경보 수치
 	//------------------------------------------------------
 	int		_iDataMax;	// 그래프 맥스 값
 	int		_iDataAlert;	// 경보 울리는 기준값
-	
+
 	Queue<int>* _dataQ;
 
+	HDC _hdc;
 	HDC _memDC;
 	HBITMAP _bitmap;
 	HBITMAP _oldBitmap;
@@ -156,7 +170,7 @@ private:
 	static ST_HWNDtoTHIS _childInfoTable[dfMAXCHILD];
 
 	//------------------------------------------------------
-	// 경고모드 - 
+	// 경고모드 -
 	//
 	// 데이터 경고수치 도달시 부모 윈도우에 UM_ALERT 메시지를 보낸다.
 	//
