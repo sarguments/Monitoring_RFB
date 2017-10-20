@@ -9,7 +9,7 @@
 
 #define UM_ALERT		WM_USER + 1
 #define dfMAXCHILD		100
-#define QUEUE_SIZE		50
+#define QUEUE_SIZE		30
 #define TEXT_SIZE 32
 
 // SendMessage(부모핸들, UM_ALERT...) 를 통해서 부모에게 경고를 알린다

@@ -13,7 +13,7 @@ private:
 	int count = 0;
 
 public:
-	Queue(int size = 50) :size(size)
+	Queue(int size = 30) :size(size)
 	{
 		buffer = new T[size];
 		front = rear = 0;
